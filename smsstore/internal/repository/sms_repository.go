@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"smsstore/internal/db"
 	"smsstore/pkg/models"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 )
 
 func AddMessageToUser(phoneNumber string, message string, status string) error {
-	client := GetClient()
+	client := db.GetClient()
 	collection := client.Database("smsstore").Collection("smsdata")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -35,7 +36,7 @@ func AddMessageToUser(phoneNumber string, message string, status string) error {
 }
 
 func GetUserMessages(phoneNumber string) ([]models.MessageWithStatus, error) {
-	client := GetClient()
+	client := db.GetClient()
 	collection := client.Database("smsstore").Collection("smsdata")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

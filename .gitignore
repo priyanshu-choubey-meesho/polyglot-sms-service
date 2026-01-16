@@ -1,0 +1,29 @@
+# Log files
+logs/
+*.log
+*.pid
+
+# Go build artifacts
+smsstore/app
+smsstore/smsstore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Build outputs
+sms-sender/build/
+sms-sender/.gradle/
+
+# Environment files
+.env
+.env.local

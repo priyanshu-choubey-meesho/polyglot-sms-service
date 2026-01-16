@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -8,6 +9,7 @@ public class BlacklistCache {
     private final StringRedisTemplate redisTemplate;
     private static final String BLACKLIST_PREFIX = "blacklist:";
 
+    @Autowired
     public BlacklistCache(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }

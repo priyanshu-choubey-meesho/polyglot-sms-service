@@ -1,4 +1,4 @@
-package repository
+package db
 
 import (
 	"context"
@@ -16,6 +16,7 @@ var (
 	once        sync.Once
 )
 
+// GetClient returns a singleton MongoDB client initialized with app config.
 func GetClient() *mongo.Client {
 	once.Do(func() {
 		var err error
@@ -47,6 +48,7 @@ func connectDB(uri string) (*mongo.Client, error) {
 	return client, nil
 }
 
+// DisconnectMongo gracefully closes the shared client.
 func DisconnectMongo() error {
 	if mongoClient == nil {
 		return nil

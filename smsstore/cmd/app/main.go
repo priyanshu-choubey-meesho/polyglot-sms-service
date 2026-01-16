@@ -2,23 +2,25 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"smsstore/internal/config"
-	"smsstore/internal/repository"
+	"smsstore/internal/consumer"
+	"smsstore/internal/db"
 	"smsstore/internal/routes"
-	"smsstore/pkg/models"
 	"syscall"
 	"time"
-
-	"github.com/segmentio/kafka-go"
 )
 
 func main() {
-	repository.GetClient()
+	// Configure logger to write unbuffered output directly to stdout
+	// This ensures logs are written immediately without buffering
+	log.SetOutput(os.Stdout)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
+	db.GetClient()
 
 	cfg := config.LoadConfig()
 
@@ -40,7 +42,7 @@ func main() {
 	}()
 
 	// Start Kafka consumer in goroutine
-	go consumeKafkaMessages(cfg)
+	go consumer.StartKafkaConsumer(cfg)
 
 	// Setup graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -56,46 +58,9 @@ func main() {
 		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	if err := repository.DisconnectMongo(); err != nil {
+	if err := db.DisconnectMongo(); err != nil {
 		log.Println("Error disconnecting MongoDB:", err)
 	}
 
 	log.Println("Server exited")
-}
-
-func consumeKafkaMessages(cfg *config.Config) {
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  cfg.KafkaBrokers,
-		Topic:    cfg.KafkaTopic,
-		GroupID:  cfg.KafkaGroupID,
-		MinBytes: 10e3, // 10KB
-		MaxBytes: 10e6, // 10MB
-	})
-	defer reader.Close()
-
-	log.Printf("Kafka consumer started - Topic: %s, GroupID: %s", cfg.KafkaTopic, cfg.KafkaGroupID)
-
-	for {
-		msg, err := reader.ReadMessage(context.Background())
-		if err != nil {
-			log.Printf("Error reading Kafka message: %v", err)
-			continue
-		}
-
-		var smsEvent models.SmsEvent
-		if err := json.Unmarshal(msg.Value, &smsEvent); err != nil {
-			log.Printf("Error unmarshaling SMS event: %v", err)
-			continue
-		}
-
-		log.Printf("Received SMS event for: %s (status: %s)", smsEvent.PhoneNumber, smsEvent.Status)
-
-		// Store message in MongoDB with status
-		if err := repository.AddMessageToUser(smsEvent.PhoneNumber, smsEvent.Message, smsEvent.Status); err != nil {
-			log.Printf("Error storing message: %v", err)
-			continue
-		}
-
-		log.Printf("Successfully stored message for: %s with status: %s", smsEvent.PhoneNumber, smsEvent.Status)
-	}
 }
