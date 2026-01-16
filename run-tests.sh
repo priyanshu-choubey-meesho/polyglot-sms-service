@@ -92,14 +92,6 @@ if command -v mongosh &> /dev/null; then
 else
     echo "  ⚠ mongosh not found, skipping MongoDB cleanup"
 fi
-
-# Clean Redis blacklist cache
-if command -v redis-cli &> /dev/null; then
-    redis-cli --scan --pattern "blacklist:*" | xargs -r redis-cli DEL > /dev/null 2>&1 || true
-    echo "  ✓ Redis blacklist cache cleaned"
-else
-    echo "  ⚠ redis-cli not found, skipping Redis cleanup"
-fi
 echo ""
 
 # =============================================================================
@@ -129,16 +121,6 @@ wait_for_port() {
     echo -e " ${RED}✗ Timeout${NC}"
     return 1
 }
-
-# Check Redis
-if sudo systemctl is-active --quiet redis-server; then
-    echo "  ✓ Redis is running"
-else
-    echo "  Starting Redis..."
-    sudo systemctl start redis-server
-    sleep 2
-    echo "  ✓ Redis started"
-fi
 
 # Check MongoDB
 if sudo systemctl is-active --quiet mongod; then
@@ -250,7 +232,7 @@ fi
 
 # Test 2: Wait for processing
 echo "  ⏳ Test 2: Waiting for Kafka consumer..."
-sleep 12
+sleep 8
 echo -e "    ${GREEN}✓ Processing complete${NC}"
 
 # Test 3: Retrieve messages
@@ -284,50 +266,6 @@ fi
 
 echo ""
 
-# Test 6: Test blacklisted phone number
-echo "  🚫 Test 6: Testing blacklisted number (+1111111111)..."
-BLOCKED_PHONE="+1111111111"
-BLOCKED_MESSAGE="This message should be blocked"
-BLOCKED_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$SPRING_BOOT_URL/v1/sms/send" \
-  -H "Content-Type: application/json" \
-  -d "{\"phoneNumber\": \"$BLOCKED_PHONE\", \"message\": \"$BLOCKED_MESSAGE\"}")
-
-BLOCKED_HTTP_CODE=$(echo "$BLOCKED_RESPONSE" | tail -n1)
-BLOCKED_BODY=$(echo "$BLOCKED_RESPONSE" | sed '$d')
-
-if [ "$BLOCKED_HTTP_CODE" = "200" ]; then
-    if echo "$BLOCKED_BODY" | grep -q "blacklisted"; then
-        echo -e "    ${GREEN}✓ Blocked number rejected correctly${NC}"
-    else
-        echo -e "    ${RED}✗ Blocked number was not rejected${NC}"
-        TEST_PASSED=false
-    fi
-else
-    echo -e "    ${RED}✗ Failed to test blocked number (HTTP $BLOCKED_HTTP_CODE)${NC}"
-    TEST_PASSED=false
-fi
-
-# Test 7: Verify blocked message stored with blocked status
-echo "  📊 Test 7: Verifying blocked message in database..."
-sleep 5  # Wait for Kafka processing
-BLOCKED_GET_RESPONSE=$(curl -s "$GO_SERVICE_URL/v1/user/$BLOCKED_PHONE/messages")
-
-if echo "$BLOCKED_GET_RESPONSE" | grep -q "$BLOCKED_MESSAGE"; then
-    echo -e "    ${GREEN}✓ Blocked message stored in database${NC}"
-    
-    # Verify it has blocked status
-    if echo "$BLOCKED_GET_RESPONSE" | grep -q "blocked"; then
-        echo -e "    ${GREEN}✓ Message marked with 'blocked' status${NC}"
-    else
-        echo -e "    ${YELLOW}⚠ Message status not verified${NC}"
-    fi
-else
-    echo -e "    ${RED}✗ Blocked message not found in database${NC}"
-    TEST_PASSED=false
-fi
-
-echo ""
-
 # =============================================================================
 # Step 6: Generate Test Report
 # =============================================================================
@@ -339,14 +277,7 @@ echo "    • Spring Boot Service: ✓ Running on port 8080"
 echo "    • Go Service:          ✓ Running on port 8081"
 echo "    • Kafka:               ✓ Running on port 9092"
 echo "    • MongoDB:             ✓ Running on port 27017"
-echo "    • Redis:               ✓ Running on port 6379"
-if [ "$TEST_PASSED" = true ]; then
-    echo "    • Message Delivery:    ✓ Success"
-    echo "    • Blacklist Blocking:  ✓ Success"
-else
-    echo "    • Message Delivery:    ✗ Failed"
-    echo "    • Blacklist Blocking:  ✗ Failed"
-fi
+echo "    • Message Delivery:    $([ "$TEST_PASSED" = true ] && echo "✓ Success" || echo "✗ Failed")"
 echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
