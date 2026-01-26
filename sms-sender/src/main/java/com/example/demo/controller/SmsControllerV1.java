@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.demo.model.SmsResponse;
 import com.example.demo.service.SmsService;
 import com.example.demo.model.SmsRequest;
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 
 @RestController
 @RequestMapping("v1/sms/send")

@@ -1,20 +1,20 @@
 package com.example.demo;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import com.example.demo.service.BlacklistCache;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class BlacklistCacheTest {
 
     @Mock
@@ -25,7 +25,7 @@ public class BlacklistCacheTest {
 
     private BlacklistCache blacklistCache;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         blacklistCache = new BlacklistCache(redisTemplate);
     }
@@ -33,38 +33,42 @@ public class BlacklistCacheTest {
     @Test
     public void testIsBlacklistedReturnsTrueWhenPhoneNumberExists() {
         String phoneNumber = "+1234567890";
-        when(redisTemplate.hasKey(phoneNumber)).thenReturn(true);
+        String key = "blacklist:" + phoneNumber;
+        when(redisTemplate.hasKey(key)).thenReturn(true);
 
         assertTrue(blacklistCache.isBlacklisted(phoneNumber));
-        verify(redisTemplate).hasKey(phoneNumber);
+        verify(redisTemplate).hasKey(key);
     }
 
     @Test
     public void testIsBlacklistedReturnsFalseWhenPhoneNumberDoesNotExist() {
         String phoneNumber = "+1234567890";
-        when(redisTemplate.hasKey(phoneNumber)).thenReturn(false);
+        String key = "blacklist:" + phoneNumber;
+        when(redisTemplate.hasKey(key)).thenReturn(false);
 
         assertFalse(blacklistCache.isBlacklisted(phoneNumber));
-        verify(redisTemplate).hasKey(phoneNumber);
+        verify(redisTemplate).hasKey(key);
     }
 
     @Test
     public void testAddToBlacklist() {
         String phoneNumber = "+1234567890";
+        String key = "blacklist:" + phoneNumber;
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
 
         blacklistCache.addToBlacklist(phoneNumber);
 
         verify(redisTemplate).opsForValue();
-        verify(valueOps).set(phoneNumber, "1");
+        verify(valueOps).set(key, "1");
     }
 
     @Test
     public void testRemoveFromBlacklist() {
         String phoneNumber = "+1234567890";
+        String key = "blacklist:" + phoneNumber;
 
         blacklistCache.removeFromBlacklist(phoneNumber);
 
-        verify(redisTemplate).delete(phoneNumber);
+        verify(redisTemplate).delete(key);
     }
 }

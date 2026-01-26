@@ -3,8 +3,17 @@
 # Stop all services
 
 PROJECT_ROOT="$HOME/Desktop/polyglot-sms-service"
-KAFKA_HOME="$HOME/kafka_2.13-3.6.1"
 LOG_DIR="$PROJECT_ROOT/logs"
+
+# Find Kafka installation (check common locations)
+if [ -d "/usr/local/kafka" ] && [ -f "/usr/local/kafka/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="/usr/local/kafka"
+elif [ -d "$HOME/kafka_2.13-3.6.2" ] && [ -f "$HOME/kafka_2.13-3.6.2/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="$HOME/kafka_2.13-3.6.2"
+else
+    echo "Error: Kafka not found. Please install Kafka 3.6.2 at /usr/local/kafka or ~/kafka_2.13-3.6.2"
+    exit 1
+fi
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -82,7 +91,11 @@ fi
 # Clean Redis blacklist cache
 echo -e "${YELLOW}Cleaning up Redis blacklist cache...${NC}"
 if command -v redis-cli &> /dev/null; then
-    redis-cli --scan --pattern "blacklist:*" | xargs -r redis-cli DEL > /dev/null 2>&1 || true
+    # macOS xargs doesn't support -r, so we check if there are keys first
+    KEYS=$(redis-cli --scan --pattern "blacklist:*" 2>/dev/null)
+    if [ -n "$KEYS" ]; then
+        echo "$KEYS" | xargs redis-cli DEL > /dev/null 2>&1 || true
+    fi
     echo -e "${GREEN}✓ Redis blacklist cache cleaned${NC}"
 else
     echo -e "${YELLOW}⚠ redis-cli not found, skipping Redis cleanup${NC}"

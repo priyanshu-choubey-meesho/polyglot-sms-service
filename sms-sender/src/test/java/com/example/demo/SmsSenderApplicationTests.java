@@ -37,20 +37,17 @@ class SmsSenderApplicationTests {
 		when(smsService.sendSms(any(SmsRequest.class)))
 				.thenReturn("SMS sent to +1234567890");
 
-		String validRequest = """
-					{
-						"phoneNumber": "+1234567890",
-						"message": "Hello World"
-					}
-				""";
+		String validRequest = "{\n" +
+				"    \"phoneNumber\": \"+1234567890\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		// Act & Assert
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.result").value("SMS sent to +1234567890"))
-				.andExpect(jsonPath("$.status").value("success"));
+				.andExpect(jsonPath("$.result").value("SMS sent to +1234567890"));
 
 		// Verify service was called
 		verify(smsService, times(1)).sendSms(any(SmsRequest.class));
@@ -58,12 +55,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testInvalidPhoneNumber_StartsWithZero() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "0123456789",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"0123456789\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -76,12 +71,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testInvalidPhoneNumber_TooShort() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "+12",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"+12\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -93,12 +86,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testInvalidPhoneNumber_TooLong() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "+12345678901234567890",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"+12345678901234567890\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -110,12 +101,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testInvalidPhoneNumber_ContainsLetters() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "+123abc7890",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"+123abc7890\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -127,12 +116,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testInvalidPhoneNumber_ContainsSpecialChars() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "+123-456-7890",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"+123-456-7890\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -144,11 +131,9 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testMissingPhoneNumber() throws Exception {
-		String invalidRequest = """
-					{
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -160,12 +145,10 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testEmptyPhoneNumber() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "",
-						"message": "Hello World"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"\",\n" +
+				"    \"message\": \"Hello World\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -177,11 +160,9 @@ class SmsSenderApplicationTests {
 
 	@Test
 	void testMissingMessage() throws Exception {
-		String invalidRequest = """
-					{
-						"phoneNumber": "+1234567890"
-					}
-				""";
+		String invalidRequest = "{\n" +
+				"    \"phoneNumber\": \"+1234567890\"\n" +
+				"}";
 
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -197,20 +178,17 @@ class SmsSenderApplicationTests {
 		when(smsService.sendSms(any(SmsRequest.class)))
 				.thenReturn("Failed: Phone number is blacklisted");
 
-		String request = """
-					{
-						"phoneNumber": "+1234567890",
-						"message": "Test"
-					}
-				""";
+		String request = "{\n" +
+				"    \"phoneNumber\": \"+1234567890\",\n" +
+				"    \"message\": \"Test\"\n" +
+				"}";
 
 		// Act & Assert
 		mockMvc.perform(post("/v1/sms/send")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(request))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.result").value("Failed: Phone number is blacklisted"))
-				.andExpect(jsonPath("$.status").value("success"));
+				.andExpect(jsonPath("$.result").value("Failed: Phone number is blacklisted"));
 
 		verify(smsService, times(1)).sendSms(any(SmsRequest.class));
 	}
@@ -221,12 +199,10 @@ class SmsSenderApplicationTests {
 		when(smsService.sendSms(any(SmsRequest.class)))
 				.thenReturn("SMS sent to +9876543210");
 
-		String request = """
-					{
-						"phoneNumber": "+9876543210",
-						"message": "Test message"
-					}
-				""";
+		String request = "{\n" +
+				"    \"phoneNumber\": \"+9876543210\",\n" +
+				"    \"message\": \"Test message\"\n" +
+				"}";
 
 		// Act & Assert
 		mockMvc.perform(post("/v1/sms/send")

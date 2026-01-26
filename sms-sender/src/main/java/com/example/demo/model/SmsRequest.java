@@ -1,7 +1,7 @@
 package com.example.demo.model;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Pattern;
 
 public class SmsRequest {
     @NotBlank(message = "Phone number is mandatory")

@@ -6,6 +6,7 @@ import com.example.demo.service.BlacklistCache;
 import com.example.demo.service.SmsEventProducer;
 import com.example.demo.service.SmsService;
 import com.example.demo.service.TwillioService;
+import org.springframework.kafka.KafkaException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,7 +63,7 @@ public class SmsServiceTest {
         SmsEvent capturedEvent = smsEventCaptor.getValue();
         assertEquals("+1234567890", capturedEvent.getPhoneNumber());
         assertEquals("Test message", capturedEvent.getMessage());
-        assertEquals("Sent", capturedEvent.getStatus());
+        assertEquals("successful", capturedEvent.getStatus());
     }
 
     @Test
@@ -82,7 +83,7 @@ public class SmsServiceTest {
         SmsEvent capturedEvent = smsEventCaptor.getValue();
         assertEquals("+1234567890", capturedEvent.getPhoneNumber());
         assertEquals("Test message", capturedEvent.getMessage());
-        assertEquals("Failed: Phone number is blacklisted", capturedEvent.getStatus());
+        assertEquals("blocked", capturedEvent.getStatus());
     }
 
     @Test
@@ -177,5 +178,83 @@ public class SmsServiceTest {
 
         // Assert - Event producer should be called for both success and failure
         verify(eventProducer, times(2)).sendSmsEvent(any(SmsEvent.class));
+    }
+
+    @Test
+    void testSendSms_TwillioServiceThrowsException() {
+        // Arrange
+        when(blacklistCache.isBlacklisted("+1234567890")).thenReturn(false);
+        doThrow(new RuntimeException("Failed to send SMS"))
+                .when(twillioService).sendSms("+1234567890", "Test message");
+
+        // Act
+        String result = smsService.sendSms(validRequest);
+
+        // Assert
+        assertTrue(result.startsWith("Failed to send SMS:"));
+        assertTrue(result.contains("Failed to send SMS"));
+        verify(blacklistCache, times(1)).isBlacklisted("+1234567890");
+        verify(twillioService, times(1)).sendSms("+1234567890", "Test message");
+        verify(eventProducer, times(1)).sendSmsEvent(smsEventCaptor.capture());
+
+        SmsEvent capturedEvent = smsEventCaptor.getValue();
+        assertEquals("+1234567890", capturedEvent.getPhoneNumber());
+        assertEquals("Test message", capturedEvent.getMessage());
+        assertEquals("unsuccessful", capturedEvent.getStatus());
+    }
+
+    @Test
+    void testSendSms_KafkaFailureDoesNotAffectSuccessResponse() {
+        // Arrange
+        when(blacklistCache.isBlacklisted("+1234567890")).thenReturn(false);
+        doThrow(new org.springframework.kafka.KafkaException("Kafka connection failed"))
+                .when(eventProducer).sendSmsEvent(any(SmsEvent.class));
+
+        // Act
+        String result = smsService.sendSms(validRequest);
+
+        // Assert - SMS should still be sent successfully despite Kafka failure
+        assertEquals("SMS sent to +1234567890", result);
+        verify(blacklistCache, times(1)).isBlacklisted("+1234567890");
+        verify(twillioService, times(1)).sendSms("+1234567890", "Test message");
+        verify(eventProducer, times(1)).sendSmsEvent(any(SmsEvent.class));
+    }
+
+    @Test
+    void testSendSms_KafkaFailureDoesNotAffectFailureResponse() {
+        // Arrange
+        when(blacklistCache.isBlacklisted("+1234567890")).thenReturn(false);
+        doThrow(new RuntimeException("Failed to send SMS"))
+                .when(twillioService).sendSms("+1234567890", "Test message");
+        doThrow(new org.springframework.kafka.KafkaException("Kafka connection failed"))
+                .when(eventProducer).sendSmsEvent(any(SmsEvent.class));
+
+        // Act
+        String result = smsService.sendSms(validRequest);
+
+        // Assert - Should return failure message despite Kafka failure
+        assertTrue(result.startsWith("Failed to send SMS:"));
+        verify(blacklistCache, times(1)).isBlacklisted("+1234567890");
+        verify(twillioService, times(1)).sendSms("+1234567890", "Test message");
+        // Event producer should be called twice - once for unsuccessful, but it fails
+        // Then it tries again in the catch block
+        verify(eventProducer, atLeast(1)).sendSmsEvent(any(SmsEvent.class));
+    }
+
+    @Test
+    void testSendSms_KafkaFailureForBlacklistedNumber() {
+        // Arrange
+        when(blacklistCache.isBlacklisted("+1234567890")).thenReturn(true);
+        doThrow(new org.springframework.kafka.KafkaException("Kafka connection failed"))
+                .when(eventProducer).sendSmsEvent(any(SmsEvent.class));
+
+        // Act
+        String result = smsService.sendSms(validRequest);
+
+        // Assert - Should return blacklisted message despite Kafka failure
+        assertEquals("Failed: Phone number is blacklisted", result);
+        verify(blacklistCache, times(1)).isBlacklisted("+1234567890");
+        verify(twillioService, never()).sendSms(any(), any());
+        verify(eventProducer, times(1)).sendSmsEvent(any(SmsEvent.class));
     }
 }

@@ -14,8 +14,17 @@
 set -e
 
 PROJECT_ROOT="$HOME/Desktop/polyglot-sms-service"
-KAFKA_HOME="$HOME/kafka_2.13-3.6.1"
 LOG_DIR="$PROJECT_ROOT/logs"
+
+# Find Kafka installation (check common locations)
+if [ -d "/usr/local/kafka" ] && [ -f "/usr/local/kafka/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="/usr/local/kafka"
+elif [ -d "$HOME/kafka_2.13-3.6.2" ] && [ -f "$HOME/kafka_2.13-3.6.2/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="$HOME/kafka_2.13-3.6.2"
+else
+    echo "Error: Kafka not found. Please install Kafka 3.6.2 at /usr/local/kafka or ~/kafka_2.13-3.6.2"
+    exit 1
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -43,7 +52,8 @@ wait_for_port() {
     
     echo -n "  Waiting for $service on port $port..."
     while [ $count -lt $max_wait ]; do
-        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+        # Use lsof on macOS (more reliable than netstat)
+        if lsof -ti:$port >/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q "\.$port "; then
             echo -e " ${GREEN}✓${NC}"
             return 0
         fi
@@ -55,17 +65,43 @@ wait_for_port() {
     return 1
 }
 
+# Check if a service is running on a port (macOS compatible)
+is_port_in_use() {
+    local port=$1
+    lsof -ti:$port >/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q "\.$port "
+}
+
 # =============================================================================
 # Step 1: Check Redis
 # =============================================================================
 echo -e "${YELLOW}[1/7] Checking Redis...${NC}"
-if sudo systemctl is-active --quiet redis-server; then
+if is_port_in_use 6379; then
     echo -e "  ${GREEN}✓ Redis is running${NC}"
-else
-    echo "  Starting Redis..."
-    sudo systemctl start redis-server
+elif command -v brew &> /dev/null && brew services list 2>/dev/null | grep -q "redis.*started"; then
+    echo -e "  ${GREEN}✓ Redis is running (via Homebrew)${NC}"
+elif command -v brew &> /dev/null; then
+    echo "  Starting Redis via Homebrew..."
+    brew services start redis 2>/dev/null || redis-server --daemonize yes 2>/dev/null
     sleep 2
-    echo -e "  ${GREEN}✓ Redis started${NC}"
+    if is_port_in_use 6379; then
+        echo -e "  ${GREEN}✓ Redis started${NC}"
+    else
+        echo -e "  ${YELLOW}⚠ Redis may not be running. Please start it manually:${NC}"
+        echo "     brew services start redis"
+        echo "     or: redis-server"
+    fi
+else
+    # Try to start redis-server directly
+    if command -v redis-server &> /dev/null; then
+        redis-server --daemonize yes 2>/dev/null && sleep 2
+        if is_port_in_use 6379; then
+            echo -e "  ${GREEN}✓ Redis started${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ Redis not running. Please start it manually${NC}"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠ Redis not found. Please install: brew install redis${NC}"
+    fi
 fi
 echo ""
 
@@ -73,13 +109,33 @@ echo ""
 # Step 2: Check MongoDB
 # =============================================================================
 echo -e "${YELLOW}[2/7] Checking MongoDB...${NC}"
-if sudo systemctl is-active --quiet mongod; then
+if is_port_in_use 27017; then
     echo -e "  ${GREEN}✓ MongoDB is running${NC}"
-else
-    echo "  Starting MongoDB..."
-    sudo systemctl start mongod
+elif command -v brew &> /dev/null && brew services list 2>/dev/null | grep -q "mongodb-community.*started"; then
+    echo -e "  ${GREEN}✓ MongoDB is running (via Homebrew)${NC}"
+elif command -v brew &> /dev/null; then
+    echo "  Starting MongoDB via Homebrew..."
+    brew services start mongodb-community 2>/dev/null || mongod --fork --logpath /tmp/mongod.log 2>/dev/null
     sleep 2
-    echo -e "  ${GREEN}✓ MongoDB started${NC}"
+    if is_port_in_use 27017; then
+        echo -e "  ${GREEN}✓ MongoDB started${NC}"
+    else
+        echo -e "  ${YELLOW}⚠ MongoDB may not be running. Please start it manually:${NC}"
+        echo "     brew services start mongodb-community"
+        echo "     or: mongod --fork --logpath /tmp/mongod.log"
+    fi
+else
+    # Try to start mongod directly
+    if command -v mongod &> /dev/null; then
+        mongod --fork --logpath /tmp/mongod.log 2>/dev/null && sleep 2
+        if is_port_in_use 27017; then
+            echo -e "  ${GREEN}✓ MongoDB started${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ MongoDB not running. Please start it manually${NC}"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠ MongoDB not found. Please install: brew install mongodb-community${NC}"
+    fi
 fi
 echo ""
 
@@ -87,7 +143,7 @@ echo ""
 # Step 3: Start Zookeeper
 # =============================================================================
 echo -e "${YELLOW}[3/7] Starting Zookeeper...${NC}"
-if netstat -tuln 2>/dev/null | grep -q ":2181 " || ss -tuln 2>/dev/null | grep -q ":2181 "; then
+if is_port_in_use 2181; then
     echo -e "  ${GREEN}✓ Zookeeper already running${NC}"
 else
     rm -rf /tmp/zookeeper 2>/dev/null
@@ -103,7 +159,7 @@ echo ""
 # Step 4: Start Kafka
 # =============================================================================
 echo -e "${YELLOW}[4/7] Starting Kafka...${NC}"
-if netstat -tuln 2>/dev/null | grep -q ":9092 " || ss -tuln 2>/dev/null | grep -q ":9092 "; then
+if is_port_in_use 9092; then
     echo -e "  ${GREEN}✓ Kafka already running${NC}"
 else
     rm -rf /tmp/kafka-logs 2>/dev/null
@@ -133,7 +189,7 @@ echo ""
 # Step 5: Start Spring Boot Service
 # =============================================================================
 echo -e "${YELLOW}[5/7] Starting Spring Boot service...${NC}"
-if netstat -tuln 2>/dev/null | grep -q ":8080 " || ss -tuln 2>/dev/null | grep -q ":8080 "; then
+if is_port_in_use 8080; then
     echo -e "  ${GREEN}✓ Spring Boot already running on port 8080${NC}"
 else
     cd "$PROJECT_ROOT/sms-sender"
@@ -148,7 +204,7 @@ echo ""
 # Step 6: Start Go Service
 # =============================================================================
 echo -e "${YELLOW}[6/7] Starting Go service...${NC}"
-if netstat -tuln 2>/dev/null | grep -q ":8081 " || ss -tuln 2>/dev/null | grep -q ":8081 "; then
+if is_port_in_use 8081; then
     echo -e "  ${GREEN}✓ Go service already running on port 8081${NC}"
 else
     cd "$PROJECT_ROOT/smsstore"

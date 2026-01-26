@@ -14,8 +14,17 @@
 set -e
 
 PROJECT_ROOT="$HOME/Desktop/polyglot-sms-service"
-KAFKA_HOME="$HOME/kafka_2.13-3.6.1"
 LOG_DIR="$PROJECT_ROOT/logs"
+
+# Find Kafka installation (check common locations)
+if [ -d "/usr/local/kafka" ] && [ -f "/usr/local/kafka/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="/usr/local/kafka"
+elif [ -d "$HOME/kafka_2.13-3.6.2" ] && [ -f "$HOME/kafka_2.13-3.6.2/bin/kafka-server-start.sh" ]; then
+    KAFKA_HOME="$HOME/kafka_2.13-3.6.2"
+else
+    echo "Error: Kafka not found. Please install Kafka 3.6.2 at /usr/local/kafka or ~/kafka_2.13-3.6.2"
+    exit 1
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -101,7 +110,7 @@ echo -e "${YELLOW}[3/7] Starting services...${NC}"
 
 mkdir -p "$LOG_DIR"
 
-# Function to check if service is ready
+# Function to check if service is ready (macOS compatible)
 wait_for_port() {
     local port=$1
     local service=$2
@@ -110,7 +119,8 @@ wait_for_port() {
     
     echo -n "  Waiting for $service (port $port)..."
     while [ $count -lt $max_wait ]; do
-        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+        # Use lsof on macOS (more reliable than netstat)
+        if lsof -ti:$port >/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q "\.$port "; then
             echo -e " ${GREEN}✓${NC}"
             return 0
         fi
@@ -122,18 +132,41 @@ wait_for_port() {
     return 1
 }
 
-# Check MongoDB
-if sudo systemctl is-active --quiet mongod; then
+# Check if a service is running on a port (macOS compatible)
+is_port_in_use() {
+    local port=$1
+    lsof -ti:$port >/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q "\.$port "
+}
+
+# Check MongoDB (macOS compatible)
+if is_port_in_use 27017; then
     echo "  ✓ MongoDB is running"
-else
-    echo "  Starting MongoDB..."
-    sudo systemctl start mongod
+elif command -v brew &> /dev/null && brew services list 2>/dev/null | grep -q "mongodb-community.*started"; then
+    echo "  ✓ MongoDB is running (via Homebrew)"
+elif command -v brew &> /dev/null; then
+    echo "  Starting MongoDB via Homebrew..."
+    brew services start mongodb-community 2>/dev/null || mongod --fork --logpath /tmp/mongod.log 2>/dev/null
     sleep 2
-    echo "  ✓ MongoDB started"
+    if is_port_in_use 27017; then
+        echo "  ✓ MongoDB started"
+    else
+        echo "  ⚠ MongoDB may not be running. Please start it manually"
+    fi
+else
+    if command -v mongod &> /dev/null; then
+        mongod --fork --logpath /tmp/mongod.log 2>/dev/null && sleep 2
+        if is_port_in_use 27017; then
+            echo "  ✓ MongoDB started"
+        else
+            echo "  ⚠ MongoDB not running. Please start it manually"
+        fi
+    else
+        echo "  ⚠ MongoDB not found. Please install: brew install mongodb-community"
+    fi
 fi
 
 # Start Zookeeper
-if netstat -tuln 2>/dev/null | grep -q ":2181 " || ss -tuln 2>/dev/null | grep -q ":2181 "; then
+if is_port_in_use 2181; then
     echo "  ✓ Zookeeper already running"
 else
     rm -rf /tmp/zookeeper 2>/dev/null
@@ -145,7 +178,7 @@ else
 fi
 
 # Start Kafka
-if netstat -tuln 2>/dev/null | grep -q ":9092 " || ss -tuln 2>/dev/null | grep -q ":9092 "; then
+if is_port_in_use 9092; then
     echo "  ✓ Kafka already running"
 else
     rm -rf /tmp/kafka-logs 2>/dev/null
@@ -171,7 +204,7 @@ else
 fi
 
 # Start Spring Boot
-if netstat -tuln 2>/dev/null | grep -q ":8080 " || ss -tuln 2>/dev/null | grep -q ":8080 "; then
+if is_port_in_use 8080; then
     echo "  ✓ Spring Boot already running"
 else
     cd "$PROJECT_ROOT/sms-sender"
@@ -182,7 +215,7 @@ else
 fi
 
 # Start Go Service
-if netstat -tuln 2>/dev/null | grep -q ":8081 " || ss -tuln 2>/dev/null | grep -q ":8081 "; then
+if is_port_in_use 8081; then
     echo "  ✓ Go service already running"
 else
     cd "$PROJECT_ROOT/smsstore"
