@@ -24,7 +24,11 @@ public class SmsControllerV1 {
 
     @PostMapping
     public ResponseEntity<SmsResponse> sendSmsRequest(@Valid @RequestBody SmsRequest request) {
-        String result = service.sendSms(request);
+        try {
+            String result = service.sendSms(request);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new SmsResponse("Server error kindly try again later"));
+        }
         return ResponseEntity.ok(new SmsResponse(result));
     }
 }
