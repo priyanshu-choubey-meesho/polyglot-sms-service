@@ -34,10 +34,11 @@ A microservices-based SMS processing system with Spring Boot (Java) and Go servi
 
 ## Prerequisites
 
-- **Java 21** - LTS version
-- **Go 1.25+** - For Go service
+- **Java 8** - JDK 1.8 or higher
+- **Go 1.25.5** - For Go service
 - **MongoDB 8.0+** - Document storage
 - **Kafka 3.6.1** - Event streaming (with Zookeeper)
+- **Redis** - For blacklist caching (default port 6379)
 
 ## Quick Start
 
@@ -156,13 +157,33 @@ tail -f logs/kafka.log         # Kafka
 tail -f logs/zookeeper.log     # Zookeeper
 ```
 
-## Technologies
+## Technologies & Versions
 
-- Spring Boot 3.4.1 (Java 21)
-- Go 1.25
-- Apache Kafka 3.6.1
-- MongoDB 8.0
-- Gradle 9.2.1
+### Java Service (Spring Boot)
+- **Java**: 1.8 (JDK 8)
+- **Spring Boot**: 2.7.18
+- **Spring Dependency Management**: 1.0.15.RELEASE
+- **Gradle**: 7.6.3
+- **Spring Kafka**: (version managed by Spring Boot 2.7.18)
+- **Spring Data Redis**: (version managed by Spring Boot 2.7.18)
+- **Bean Validation (JSR-303)**: javax.validation:validation-api
+
+### Go Service
+- **Go**: 1.25.5
+- **gorilla/mux**: v1.8.1 (HTTP router)
+- **segmentio/kafka-go**: v0.4.49 (Kafka client)
+- **mongo-driver**: v1.17.6 (MongoDB driver)
+
+### Testing Frameworks
+- **JUnit Jupiter**: 5.9.3
+- **Mockito**: 4.11.0
+- **Mockito JUnit Jupiter**: 4.11.0
+
+### Infrastructure
+- **Apache Kafka**: 3.6.1
+- **Zookeeper**: (bundled with Kafka 3.6.1)
+- **MongoDB**: 8.0+
+- **Redis**: (latest stable version)
 
 ## Troubleshooting
 
