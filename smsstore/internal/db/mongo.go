@@ -13,20 +13,28 @@ import (
 
 var (
 	mongoClient *mongo.Client
+	initErr     error
 	once        sync.Once
 )
 
 // GetClient returns a singleton MongoDB client initialized with app config.
-func GetClient() *mongo.Client {
+// Returns an error if the connection failed during initialization.
+// Subsequent calls will return the same error if initialization failed.
+func GetClient() (*mongo.Client, error) {
 	once.Do(func() {
-		var err error
-		cfg := config.LoadConfig()
-		mongoClient, err = connectDB(cfg.MongoURI)
+		cfg, err := config.LoadConfig()
 		if err != nil {
-			log.Fatal("Failed to connect to MongoDB:", err)
+			initErr = err
+			mongoClient = nil
+			return
+		}
+		mongoClient, initErr = connectDB(cfg.MongoURI)
+		if initErr != nil {
+			log.Printf("Failed to connect to MongoDB: %v", initErr)
+			mongoClient = nil
 		}
 	})
-	return mongoClient
+	return mongoClient, initErr
 }
 
 func connectDB(uri string) (*mongo.Client, error) {

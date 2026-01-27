@@ -20,11 +20,23 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	db.GetClient()
+	// Load and validate configuration
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
 
-	cfg := config.LoadConfig()
+	// Initialize MongoDB connection
+	_, err = db.GetClient()
+	if err != nil {
+		log.Fatalf("Failed to initialize MongoDB connection: %v", err)
+	}
 
-	router := routes.SetupRoutes()
+	// Setup HTTP routes
+	router, err := routes.SetupRoutes()
+	if err != nil {
+		log.Fatalf("Failed to setup routes: %v", err)
+	}
 
 	server := &http.Server{
 		Addr:         cfg.ServerPort,
